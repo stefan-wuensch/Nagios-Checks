@@ -60,9 +60,8 @@ EXITSTATUSDICTREVERSE = {
 	3: "UNKNOWN"
 }
 
-TIMENOW = int( time.time() )
-WARNINGSYNCDELAY  = 15		# number of seconds over which it's a Warning - we will forgive any sync delay up to 15 sec.
-CRITICALSYNCDELAY = 900		# number of seconds (equals 15 minutes) over which it's Critical
+WARNINGSYNCDELAY  = 300		# Number of seconds over which it's a Warning - we will forgive any sync delay up to 5 min.
+CRITICALSYNCDELAY = 900		# Number of seconds (equals 15 minutes) over which it's Critical
 
 
 
@@ -101,8 +100,8 @@ def lastSyncTimeTest( instance ):
 	if args.verbose: print "lastConsistencyTime ISO-8601:", instance[ 'lastConsistencyTime' ]
 
 	# First thing to check is the text string of the state
-	if instance[ 'replicationState' ] == "Not Replicated":
-		message = instance[ 'name' ] + " (" + instance[ 'id' ] + ") in account \"" + args.username + "\" is Not Replicated!!"
+	if instance[ 'replicationState' ] != "Replicated":
+		message = instance[ 'name' ] + " (" + instance[ 'id' ] + ") in account \"" + args.username + "\" is \"" + instance[ 'replicationState' ] + "\" not \"Replicated\" !!"
 		return ( message, EXITSTATUSDICT[ 'CRITICAL' ] )
 
 	# Dummy check the timestamp, because if the host isn't replicating the timestamp will be null
@@ -113,8 +112,10 @@ def lastSyncTimeTest( instance ):
 		return ( message, EXITSTATUSDICT[ 'UNKNOWN' ] )
 	
 	# Convert ISO-8601 format to UNIX epoch (integer seconds since Jan 1 1970) since that makes the math easy :-)
-	instance[ 'lastConsistencyTime' ] = calendar.timegm( datetime.strptime( instance[ 'lastConsistencyTime' ], '%Y-%m-%dT%H:%M:%S.%fZ' ).timetuple() )
-# 	instance[ 'lastConsistencyTime' ] = calendar.timegm( datetime.strptime( instance[ 'lastConsistencyTime' ], '%Y-%m-%dT%H:%M:%S.%f+00:00' ).timetuple() )
+	try:
+		instance[ 'lastConsistencyTime' ] = calendar.timegm( datetime.strptime( instance[ 'lastConsistencyTime' ], '%Y-%m-%dT%H:%M:%S.%fZ' ).timetuple() )
+	except ValueError:
+		instance[ 'lastConsistencyTime' ] = calendar.timegm( datetime.strptime( instance[ 'lastConsistencyTime' ], '%Y-%m-%dT%H:%M:%S.%f+00:00' ).timetuple() )
 	if args.verbose: print "lastConsistencyTime UNIX epoch seconds:", instance[ 'lastConsistencyTime' ]
 
 	# Now for the ultimate in being careful, make sure it really is an integer!
@@ -126,7 +127,7 @@ def lastSyncTimeTest( instance ):
 	lastSyncTimeStr = time.strftime( '%Y-%m-%d %H:%M:%S', time.localtime( instance[ 'lastConsistencyTime' ] ) )
 
 	# Finally calculate how far back was the last sync
-	timeDelta = TIMENOW - instance[ 'lastConsistencyTime' ]
+	timeDelta = int( time.time() ) - instance[ 'lastConsistencyTime' ]
 
 	if ( timeDelta > CRITICALSYNCDELAY ):		# This is the first test, because the longest delay value is Critical
 		message = instance[ 'name' ] + " has not had an update since " + lastSyncTimeStr + ", " + str( timeDelta ) + " seconds ago"
@@ -188,9 +189,9 @@ parser.add_argument( "-n", "--hostname", help = "hostname of instance to check, 
 args = parser.parse_args()
 
 if args.verbose:
-	print "Time now", TIMENOW
+	print "Time now", int( time.time() )
 	print "username", args.username
-# 	print "password", args.password		# echoing the password is probably not a good idea, but it comes in on the command line anyway.
+# 	print "password", args.password		# Echoing the password is probably not a good idea, but it comes in on the command line anyway.
 	print "hostname", args.hostname
 
 
@@ -232,8 +233,8 @@ if args.verbose: print "\nlistMachines:", json.dumps( instances, sort_keys = Tru
 # the logic in lastSyncTimeTest()
 # 
 # for x in instances:
-# 	timetest = int( TIMENOW - 901 )
-# 	print "\n*** Setting lastConsistencyTime to " + str( timetest ) + " for testing"
+# 	timetest = "2016-01-01T22:08:15.803212+00:00"
+# 	print "\n*** Setting lastConsistencyTime to " + timetest + " for testing"
 # 	x[ 'lastConsistencyTime' ] = timetest
 # 	print "\n*** Setting replicationState to \"foo\" for testing"
 # 	x[ 'replicationState' ] = "foo"
@@ -243,12 +244,12 @@ if args.verbose: print "\nlistMachines:", json.dumps( instances, sort_keys = Tru
 
 if args.hostname == "all":		# "all" means we're going to check all of them (duh)
 
-	summaryMessage = ""		# init to null because we are going to be appending text
-	highestError = 0		# track the worst status for the final return code
-	statusDict = {}			# a dictionary to track all the instances' status for later use
+	summaryMessage = ""		# Init to null because we are going to be appending text
+	highestError = 0		# Track the worst status for the final return code
+	statusDict = {}			# Init a dictionary to track all the instances' status for later use
 
 	for severity in ( EXITSTATUSDICT[ 'OK' ], EXITSTATUSDICT[ 'WARNING' ], EXITSTATUSDICT[ 'CRITICAL' ], EXITSTATUSDICT[ 'UNKNOWN' ] ):
-		statusDict[ severity ] = []		# initialize the structure - each severity level will hold names of instances
+		statusDict[ severity ] = []		# Initialize the structure - each severity level will hold names of instances
 
 	for instance in instances:
 		if args.verbose: print "\nname:", instance[ 'name' ]
@@ -257,7 +258,7 @@ if args.hostname == "all":		# "all" means we're going to check all of them (duh)
 		statusDict[ instance[ 'name' ] ] = {}				# Init the structure for each host
 		statusDict[ instance[ 'name' ] ][ 'message' ] = message		# Store the message for each host
 		statusDict[ instance[ 'name' ] ][ 'exitCode' ] = exitCode	# Store the status code for each host
-		statusDict[ exitCode ].append( instance[ 'name' ] )		# push the name of this instance into the array for its severity
+		statusDict[ exitCode ].append( instance[ 'name' ] )		# Push the name of this instance into the array for its severity
 		statusDict[ exitCode ].sort
 
 		if args.verbose: print "\nstatusDict:", json.dumps( statusDict, sort_keys = True, indent = 4 )
@@ -266,22 +267,37 @@ if args.hostname == "all":		# "all" means we're going to check all of them (duh)
 	# Now we build up the 'summaryMessage' by iterating across all the different statuses. (or stati? My Latin sucks.)
 	# For each level of severity we'll build a comma-separated list of hostnames with that status. 
 	# If a severity level doesn't have any hosts in that state, we'll output '0' (zero).
+	# Each of the severity levels will be semicolon-separated
+	# Example: OK: server12.harvard.edu; WARNING: 0; CRITICAL: server1.harvard.edu, server8.harvard.edu; UNKNOWN: 0
 	for severity in ( EXITSTATUSDICT[ 'OK' ], EXITSTATUSDICT[ 'WARNING' ], EXITSTATUSDICT[ 'CRITICAL' ], EXITSTATUSDICT[ 'UNKNOWN' ] ):
-		if len( statusDict[ severity ] ) > 0:		# is there a host with this severity level?
-			for name in statusDict[ severity ]:	# if so, add it to the list
-				if len( summaryMessage ) > 0: 
-					summaryMessage = summaryMessage + ", "
-				summaryMessage = summaryMessage + EXITSTATUSDICTREVERSE[ severity ] + ": " + name
-		else:						# if there wasn't any host in this severity, show zero
-			if len( summaryMessage ) > 0: summaryMessage = summaryMessage + ", "
-			summaryMessage = summaryMessage + EXITSTATUSDICTREVERSE[ severity ] + ": 0"
 
-	summaryMessage = "Status of all in account \"" + args.username + "\": " + summaryMessage
+		wasPreviousCountZero = True			# Track what the previous number was, so we know when to use a semicolon vs. comma
+		if len( statusDict[ severity ] ) > 0:		# Is there one or more host(s) with this severity level?
+			isFirstHostName = True
+			for name in statusDict[ severity ]:	# If there are hosts this time, add each one to the summary message by iterating over the list
+				if len( summaryMessage ) > 0:	# Only add punctuation if we're not starting off for the very first time
+					if wasPreviousCountZero == True:
+						summaryMessage = summaryMessage + " / "
+					else:
+						summaryMessage = summaryMessage + ", "
+				if isFirstHostName: 		# Only add the name of the severity level if it's the first host with this level
+					summaryMessage = summaryMessage + EXITSTATUSDICTREVERSE[ severity ] + ": "
+					isFirstHostName = False
+				summaryMessage = summaryMessage + name
+				wasPreviousCountZero = False
+
+		else:						# If there wasn't any host in this severity, show zero
+			if len( summaryMessage ) > 0: 		# Don't add a comma if we're just starting off for the first round
+				summaryMessage = summaryMessage + " / "
+			summaryMessage = summaryMessage + EXITSTATUSDICTREVERSE[ severity ] + ": 0"
+			wasPreviousCountZero = True
+
+	summaryMessage = "Status of all hosts in account \"" + args.username + "\": " + summaryMessage
 	exitWithMessage( summaryMessage, highestError )
 
-else:		# this means we were given a specific host name to check
+else:		# This means we were given a specific host name to check
 	foundTheHostname = False
-	for instance in instances:	# here we are looking for one in particular out of all of them, so iterate
+	for instance in instances:	# Here we are looking for one in particular out of all of them, so iterate
 		if instance[ 'name' ] == args.hostname:
 			foundTheHostname = True
 			if args.verbose: print "\nI found %s" % args.hostname
