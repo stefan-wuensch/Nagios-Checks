@@ -41,7 +41,8 @@
 # =================================================================================================
 
 
-import urllib, httplib, json, re, sys, argparse, time
+import urllib, httplib, json, re, sys, argparse, time, calendar
+from datetime import datetime
 
 # Dictionary for exit status codes
 EXITSTATUSDICT = { 
@@ -97,7 +98,7 @@ def lastSyncTimeTest( instance ):
 # Returns: tuple of ( string, int ) where 'string' is a status message and 'int' is a status code
 
 	if args.verbose: print "replicationState:", instance[ 'replicationState' ]
-	if args.verbose: print "lastConsistencyTime:", instance[ 'lastConsistencyTime' ]
+	if args.verbose: print "lastConsistencyTime ISO-8601:", instance[ 'lastConsistencyTime' ]
 
 	# First thing to check is the text string of the state
 	if instance[ 'replicationState' ] == "Not Replicated":
@@ -107,23 +108,36 @@ def lastSyncTimeTest( instance ):
 	# Dummy check the timestamp, because if the host isn't replicating the timestamp will be null
 	# This shouldn't be a real indication of replication failure, because the 'replicationState' being
 	# checked above should catch it.
+	if instance[ 'lastConsistencyTime' ] is None:
+		message = instance[ 'name' ] + " lastConsistencyTime is empty! There should be something there if it is replicating properly!"
+		return ( message, EXITSTATUSDICT[ 'UNKNOWN' ] )
+	
+	# Convert ISO-8601 format to UNIX epoch (integer seconds since Jan 1 1970) since that makes the math easy :-)
+	instance[ 'lastConsistencyTime' ] = calendar.timegm( datetime.strptime( instance[ 'lastConsistencyTime' ], '%Y-%m-%dT%H:%M:%S.%fZ' ).timetuple() )
+# 	instance[ 'lastConsistencyTime' ] = calendar.timegm( datetime.strptime( instance[ 'lastConsistencyTime' ], '%Y-%m-%dT%H:%M:%S.%f+00:00' ).timetuple() )
+	if args.verbose: print "lastConsistencyTime UNIX epoch seconds:", instance[ 'lastConsistencyTime' ]
+
+	# Now for the ultimate in being careful, make sure it really is an integer!
 	if not isinstance( instance[ 'lastConsistencyTime' ], ( int, long ) ):
 		message = instance[ 'name' ] + " lastConsistencyTime is not an integer!"
 		return ( message, EXITSTATUSDICT[ 'UNKNOWN' ] )
 
+	# Make a string that's human-readable for printing in output
 	lastSyncTimeStr = time.strftime( '%Y-%m-%d %H:%M:%S', time.localtime( instance[ 'lastConsistencyTime' ] ) )
+
+	# Finally calculate how far back was the last sync
 	timeDelta = TIMENOW - instance[ 'lastConsistencyTime' ]
 
 	if ( timeDelta > CRITICALSYNCDELAY ):		# This is the first test, because the longest delay value is Critical
-		message = instance[ 'name' ] + " has not had an update since " + lastSyncTimeStr
+		message = instance[ 'name' ] + " has not had an update since " + lastSyncTimeStr + ", " + str( timeDelta ) + " seconds ago"
 		return ( message, EXITSTATUSDICT[ 'CRITICAL' ] )
 
 	if ( timeDelta > WARNINGSYNCDELAY ):
-		message = instance[ 'name' ] + " has not had an update since " + lastSyncTimeStr
+		message = instance[ 'name' ] + " has not had an update since " + lastSyncTimeStr + ", " + str( timeDelta ) + " seconds ago"
 		return ( message, EXITSTATUSDICT[ 'WARNING' ] )
 
 	if ( timeDelta <= WARNINGSYNCDELAY ):		# If the delay since last sync is less than our tolerance for Warning, it's good!!
-		message = instance[ 'name' ] + " last update " + lastSyncTimeStr
+		message = instance[ 'name' ] + " last update " + lastSyncTimeStr + ", " + str( timeDelta ) + " seconds ago"
 		return ( message, EXITSTATUSDICT[ 'OK' ] )
 
 	message = "Could not analyze the sync state for " + instance[ 'name' ]
@@ -194,7 +208,7 @@ session_cookie = [ cookie for cookie in cookies if cookie.startswith( 'session' 
 response = sendRequest( 'getUserDetails', {}, { 'Cookie': session_cookie } )
 result = json.loads( response.read() )[ 'result' ]
 if args.verbose: print "\ngetUserDetails:", json.dumps( result, sort_keys = True, indent = 4 )
-location = result[ 'mirrorLocation' ]
+location = result[ 'originalLocation' ]
 
 
 # This is from some sample code I incorporated into this script. Since the 'for' loop
