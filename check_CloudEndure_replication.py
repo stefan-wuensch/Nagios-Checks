@@ -274,7 +274,8 @@ else:		# this means we were given a specific host name to check
 			exitWithMessage( message, exitCode )
 
 	# Not finding the host name that was specified is a big problem!!!
-	if foundTheHostname == False: exitWithMessage( "Could not find the specified hostname \"" + args.hostname + "\" !!", EXITSTATUSDICT[ 'CRITICAL' ] )
+	if foundTheHostname == False: exitWithMessage( "Could not find the specified hostname \"" + args.hostname 
+							+ "\" in account \"" + args.username + "\" !!", EXITSTATUSDICT[ 'CRITICAL' ] )
 
 
 # Bail out fail-safe (but in this case "safe" is to notify us of the problem!)
