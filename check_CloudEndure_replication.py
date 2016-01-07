@@ -101,7 +101,7 @@ def lastSyncTimeTest( instance ):
 
 	# First thing to check is the text string of the state
 	if instance[ 'replicationState' ] == "Not Replicated":
-		message = instance[ 'name' ] + " (" + instance[ 'id' ] + ") is Not Replicated!"
+		message = instance[ 'name' ] + " (" + instance[ 'id' ] + ") in account \"" + args.username + "\" is Not Replicated!!"
 		return ( message, EXITSTATUSDICT[ 'CRITICAL' ] )
 
 	# Dummy check the timestamp, because if the host isn't replicating the timestamp will be null
@@ -255,13 +255,14 @@ if args.hostname == "all":		# "all" means we're going to check all of them (duh)
 	for severity in ( EXITSTATUSDICT[ 'OK' ], EXITSTATUSDICT[ 'WARNING' ], EXITSTATUSDICT[ 'CRITICAL' ], EXITSTATUSDICT[ 'UNKNOWN' ] ):
 		if len( statusDict[ severity ] ) > 0:		# is there a host with this severity level?
 			for name in statusDict[ severity ]:	# if so, add it to the list
-				if len( summaryMessage ) > 0: summaryMessage = summaryMessage + ", "
+				if len( summaryMessage ) > 0: 
+					summaryMessage = summaryMessage + ", "
 				summaryMessage = summaryMessage + EXITSTATUSDICTREVERSE[ severity ] + ": " + name
 		else:						# if there wasn't any host in this severity, show zero
 			if len( summaryMessage ) > 0: summaryMessage = summaryMessage + ", "
 			summaryMessage = summaryMessage + EXITSTATUSDICTREVERSE[ severity ] + ": 0"
 
-	summaryMessage = "Status of all: " + summaryMessage
+	summaryMessage = "Status of all in account \"" + args.username + "\": " + summaryMessage
 	exitWithMessage( summaryMessage, highestError )
 
 else:		# this means we were given a specific host name to check
