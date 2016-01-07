@@ -30,6 +30,7 @@ https://confluence.huit.harvard.edu/pages/viewpage.action?pageId=12133075
 ```
 
 Required inputs: CloudEndure username and password. 
+
 Optional inputs: A host name (expected to be FQDN, but not manditory) to check
 
 Outputs: One line of text containing the explanation of the replication status. Note that 
