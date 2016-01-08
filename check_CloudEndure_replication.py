@@ -36,7 +36,7 @@
 # Outputs: One line of text containing the explanation of the replication status. Note that 
 # 	this will be one line no matter how many hosts are found (in the case of "all")
 # 
-# Exit status: 0, 1, 2, 3 as standard Nagios status codes. See EXITSTATUSDICT for mapping.
+# Exit status: 0, 1, 2, 3 as standard Nagios status codes. See EXIT_STATUS_DICT for mapping.
 # 
 # =================================================================================================
 
@@ -45,7 +45,7 @@ import urllib, httplib, json, re, sys, argparse, time, calendar
 from datetime import datetime
 
 # Dictionary for exit status codes
-EXITSTATUSDICT = { 
+EXIT_STATUS_DICT = { 
 	"OK": 0,
 	"WARNING": 1,
 	"CRITICAL": 2,
@@ -53,20 +53,20 @@ EXITSTATUSDICT = {
 }
 
 # Dictionary for looking up the status string from the value
-EXITSTATUSDICTREVERSE = { 
+EXIT_STATUS_DICT_REVERSE = { 
 	0: "OK",
 	1: "WARNING",
 	2: "CRITICAL",
 	3: "UNKNOWN"
 }
 
-WARNINGSYNCDELAY  = 300		# Number of seconds over which it's a Warning - we will forgive any sync delay up to 5 min.
-CRITICALSYNCDELAY = 900		# Number of seconds (equals 15 minutes) over which it's Critical
+WARNING_SYNC_DELAY  = 300	# Number of seconds over which it's a Warning - we will forgive any sync delay up to 5 min.
+CRITICAL_SYNC_DELAY = 900	# Number of seconds (equals 15 minutes) over which it's Critical
 
 
 
 ###################################################################################################
-def exitWithMessage( message = "Something not defined", exitCode = EXITSTATUSDICT[ 'UNKNOWN' ] ):
+def exitWithMessage( message = "Something not defined", exitCode = EXIT_STATUS_DICT[ 'UNKNOWN' ] ):
 
 # Output a message and exit
 # 
@@ -79,7 +79,7 @@ def exitWithMessage( message = "Something not defined", exitCode = EXITSTATUSDIC
 # Note the default values.
 
 	prefix = ""
-	if exitCode == EXITSTATUSDICT[ 'UNKNOWN' ]: prefix = "Error: "		# Add additional info at beginning
+	if exitCode == EXIT_STATUS_DICT[ 'UNKNOWN' ]: prefix = "Error: "		# Add additional info at beginning
 	print "{0}{1}".format( prefix, message )
 	response = sendRequest( 'logout', {}, { 'Cookie': session_cookie } )	# Send a logout because they want that
 	sys.exit( exitCode )
@@ -102,14 +102,14 @@ def lastSyncTimeTest( instance ):
 	# First thing to check is the text string of the state
 	if instance[ 'replicationState' ] != "Replicated":
 		message = instance[ 'name' ] + " (" + instance[ 'id' ] + ") in account \"" + args.username + "\" is \"" + instance[ 'replicationState' ] + "\" not \"Replicated\" !!"
-		return ( message, EXITSTATUSDICT[ 'CRITICAL' ] )
+		return ( message, EXIT_STATUS_DICT[ 'CRITICAL' ] )
 
 	# Dummy check the timestamp, because if the host isn't replicating the timestamp will be null
 	# This shouldn't be a real indication of replication failure, because the 'replicationState' being
 	# checked above should catch it.
 	if instance[ 'lastConsistencyTime' ] is None:
 		message = instance[ 'name' ] + " lastConsistencyTime is empty! There should be something there if it is replicating properly!"
-		return ( message, EXITSTATUSDICT[ 'UNKNOWN' ] )
+		return ( message, EXIT_STATUS_DICT[ 'UNKNOWN' ] )
 	
 	# Convert ISO-8601 format to UNIX epoch (integer seconds since Jan 1 1970) since that makes the math easy :-)
 	try:
@@ -121,7 +121,7 @@ def lastSyncTimeTest( instance ):
 	# Now for the ultimate in being careful, make sure it really is an integer!
 	if not isinstance( instance[ 'lastConsistencyTime' ], ( int, long ) ):
 		message = instance[ 'name' ] + " lastConsistencyTime is not an integer!"
-		return ( message, EXITSTATUSDICT[ 'UNKNOWN' ] )
+		return ( message, EXIT_STATUS_DICT[ 'UNKNOWN' ] )
 
 	# Make a string that's human-readable for printing in output
 	lastSyncTimeStr = time.strftime( '%Y-%m-%d %H:%M:%S', time.localtime( instance[ 'lastConsistencyTime' ] ) )
@@ -129,20 +129,20 @@ def lastSyncTimeTest( instance ):
 	# Finally calculate how far back was the last sync
 	timeDelta = int( time.time() ) - instance[ 'lastConsistencyTime' ]
 
-	if ( timeDelta > CRITICALSYNCDELAY ):		# This is the first test, because the longest delay value is Critical
+	if ( timeDelta > CRITICAL_SYNC_DELAY ):		# This is the first test, because the longest delay value is Critical
 		message = instance[ 'name' ] + " has not had an update since " + lastSyncTimeStr + ", " + str( timeDelta ) + " seconds ago"
-		return ( message, EXITSTATUSDICT[ 'CRITICAL' ] )
+		return ( message, EXIT_STATUS_DICT[ 'CRITICAL' ] )
 
-	if ( timeDelta > WARNINGSYNCDELAY ):
+	if ( timeDelta > WARNING_SYNC_DELAY ):
 		message = instance[ 'name' ] + " has not had an update since " + lastSyncTimeStr + ", " + str( timeDelta ) + " seconds ago"
-		return ( message, EXITSTATUSDICT[ 'WARNING' ] )
+		return ( message, EXIT_STATUS_DICT[ 'WARNING' ] )
 
-	if ( timeDelta <= WARNINGSYNCDELAY ):		# If the delay since last sync is less than our tolerance for Warning, it's good!!
+	if ( timeDelta <= WARNING_SYNC_DELAY ):		# If the delay since last sync is less than our tolerance for Warning, it's good!!
 		message = instance[ 'name' ] + " last update " + lastSyncTimeStr + ", " + str( timeDelta ) + " seconds ago"
-		return ( message, EXITSTATUSDICT[ 'OK' ] )
+		return ( message, EXIT_STATUS_DICT[ 'OK' ] )
 
 	message = "Could not analyze the sync state for " + instance[ 'name' ]
-	return ( message, EXITSTATUSDICT[ 'UNKNOWN' ] )		# If we get to this point something went wrong!
+	return ( message, EXIT_STATUS_DICT[ 'UNKNOWN' ] )		# If we get to this point something went wrong!
 
 
 
@@ -172,7 +172,7 @@ def sendRequest( func, params, headers ):
 	conn.request( 'POST', '/latest/' + func, json.dumps( params ), headers )
 	response = conn.getresponse()
 	if response.status != 200:
-		exitWithMessage( "login call returned HTTP code {0} {1}".format( response.status, response.reason ), EXITSTATUSDICT[ 'UNKNOWN' ] )
+		exitWithMessage( "login call returned HTTP code {0} {1}".format( response.status, response.reason ), EXIT_STATUS_DICT[ 'UNKNOWN' ] )
 	return response
 
 ###################################################################################################
@@ -248,7 +248,7 @@ if args.hostname == "all":		# "all" means we're going to check all of them (duh)
 	highestError = 0		# Track the worst status for the final return code
 	statusDict = {}			# Init a dictionary to track all the instances' status for later use
 
-	for severity in ( EXITSTATUSDICT[ 'OK' ], EXITSTATUSDICT[ 'WARNING' ], EXITSTATUSDICT[ 'CRITICAL' ], EXITSTATUSDICT[ 'UNKNOWN' ] ):
+	for severity in ( EXIT_STATUS_DICT[ 'OK' ], EXIT_STATUS_DICT[ 'WARNING' ], EXIT_STATUS_DICT[ 'CRITICAL' ], EXIT_STATUS_DICT[ 'UNKNOWN' ] ):
 		statusDict[ severity ] = []		# Initialize the structure - each severity level will hold names of instances
 
 	for instance in instances:
@@ -268,8 +268,8 @@ if args.hostname == "all":		# "all" means we're going to check all of them (duh)
 	# For each level of severity we'll build a comma-separated list of hostnames with that status. 
 	# If a severity level doesn't have any hosts in that state, we'll output '0' (zero).
 	# Each of the severity levels will be semicolon-separated
-	# Example: OK: server12.harvard.edu; WARNING: 0; CRITICAL: server1.harvard.edu, server8.harvard.edu; UNKNOWN: 0
-	for severity in ( EXITSTATUSDICT[ 'OK' ], EXITSTATUSDICT[ 'WARNING' ], EXITSTATUSDICT[ 'CRITICAL' ], EXITSTATUSDICT[ 'UNKNOWN' ] ):
+	# Example: OK: server12.harvard.edu / WARNING: 0 / CRITICAL: server1.harvard.edu, server8.harvard.edu / UNKNOWN: 0
+	for severity in ( EXIT_STATUS_DICT[ 'OK' ], EXIT_STATUS_DICT[ 'WARNING' ], EXIT_STATUS_DICT[ 'CRITICAL' ], EXIT_STATUS_DICT[ 'UNKNOWN' ] ):
 
 		wasPreviousCountZero = True			# Track what the previous number was, so we know when to use a semicolon vs. comma
 		if len( statusDict[ severity ] ) > 0:		# Is there one or more host(s) with this severity level?
@@ -281,7 +281,7 @@ if args.hostname == "all":		# "all" means we're going to check all of them (duh)
 					else:
 						summaryMessage = summaryMessage + ", "
 				if isFirstHostName: 		# Only add the name of the severity level if it's the first host with this level
-					summaryMessage = summaryMessage + EXITSTATUSDICTREVERSE[ severity ] + ": "
+					summaryMessage = summaryMessage + EXIT_STATUS_DICT_REVERSE[ severity ] + ": "
 					isFirstHostName = False
 				summaryMessage = summaryMessage + name
 				wasPreviousCountZero = False
@@ -289,7 +289,7 @@ if args.hostname == "all":		# "all" means we're going to check all of them (duh)
 		else:						# If there wasn't any host in this severity, show zero
 			if len( summaryMessage ) > 0: 		# Don't add a comma if we're just starting off for the first round
 				summaryMessage = summaryMessage + " / "
-			summaryMessage = summaryMessage + EXITSTATUSDICTREVERSE[ severity ] + ": 0"
+			summaryMessage = summaryMessage + EXIT_STATUS_DICT_REVERSE[ severity ] + ": 0"
 			wasPreviousCountZero = True
 
 	summaryMessage = "Status of all hosts in account \"" + args.username + "\": " + summaryMessage
@@ -306,9 +306,9 @@ else:		# This means we were given a specific host name to check
 
 	# Not finding the host name that was specified is a big problem!!!
 	if foundTheHostname == False: exitWithMessage( "Could not find the specified hostname \"" + args.hostname 
-							+ "\" in account \"" + args.username + "\" !!", EXITSTATUSDICT[ 'CRITICAL' ] )
+							+ "\" in account \"" + args.username + "\" !!", EXIT_STATUS_DICT[ 'CRITICAL' ] )
 
 
 # Bail out fail-safe (but in this case "safe" is to notify us of the problem!)
-exitWithMessage( "Something went wrong - this should not happen.", EXITSTATUSDICT[ 'UNKNOWN' ] )
+exitWithMessage( "Something went wrong - this should not happen.", EXIT_STATUS_DICT[ 'UNKNOWN' ] )
 
