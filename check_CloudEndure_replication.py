@@ -63,6 +63,14 @@
 # SOFTWARE.
 # 
 # =================================================================================================
+# 
+# To Do:
+# - turn the Warning and Critical constants into optional arguments
+# - make the Location an optional argument, instead of hard-coded "originalLocation".
+# 	(The two Locations we might want to watch are "originalLocation" and "mirrorLocation".)
+# 
+# =================================================================================================
+
 
 
 import urllib, httplib, json, re, sys, argparse, time, calendar
@@ -84,8 +92,8 @@ EXIT_STATUS_DICT_REVERSE = {
 	3: "UNKNOWN"
 }
 
-WARNING_SYNC_DELAY  = 300	# Number of seconds over which it's a Warning - we will forgive any sync delay up to 5 min.
-CRITICAL_SYNC_DELAY = 900	# Number of seconds (equals 15 minutes) over which it's Critical
+WARNING_SYNC_DELAY  = 600	# Number of seconds over which it's a Warning - we will forgive any sync delay up to 10 min.
+CRITICAL_SYNC_DELAY = 1800	# Number of seconds (equals 30 minutes) beyond which it's Critical
 
 
 
