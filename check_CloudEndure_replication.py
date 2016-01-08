@@ -45,7 +45,7 @@ import urllib, httplib, json, re, sys, argparse, time, calendar
 from datetime import datetime
 
 # Dictionary for exit status codes
-EXIT_STATUS_DICT = { 
+EXIT_STATUS_DICT = {
 	"OK": 0,
 	"WARNING": 1,
 	"CRITICAL": 2,
@@ -53,7 +53,7 @@ EXIT_STATUS_DICT = {
 }
 
 # Dictionary for looking up the status string from the value
-EXIT_STATUS_DICT_REVERSE = { 
+EXIT_STATUS_DICT_REVERSE = {
 	0: "OK",
 	1: "WARNING",
 	2: "CRITICAL",
@@ -66,11 +66,11 @@ CRITICAL_SYNC_DELAY = 900	# Number of seconds (equals 15 minutes) over which it'
 
 
 ###################################################################################################
-def exitWithMessage( message = "Something not defined", exitCode = EXIT_STATUS_DICT[ 'UNKNOWN' ] ):
+def exit_with_message( message = "Something not defined", exitCode = EXIT_STATUS_DICT[ 'UNKNOWN' ] ):
 
 # Output a message and exit
 # 
-# Usage: exitWithMessage( string, int )
+# Usage: exit_with_message( string, int )
 # 	'string' is printed to STDOUT
 # 	'int' is used for the exit status
 # 
@@ -81,17 +81,17 @@ def exitWithMessage( message = "Something not defined", exitCode = EXIT_STATUS_D
 	prefix = ""
 	if exitCode == EXIT_STATUS_DICT[ 'UNKNOWN' ]: prefix = "Error: "		# Add additional info at beginning
 	print "{0}{1}".format( prefix, message )
-	response = sendRequest( 'logout', {}, { 'Cookie': session_cookie } )	# Send a logout because they want that
+	response = send_request( 'logout', {}, { 'Cookie': session_cookie } )	# Send a logout because they want that
 	sys.exit( exitCode )
 
 
 
 ###################################################################################################
-def lastSyncTimeTest( instance ):
+def last_sync_time_test( instance ):
 
-# This function is the heart of the health check logic. 
+# This function is the heart of the health check logic.
 # 
-# Usage: lastSyncTimeTest( dictionary )
+# Usage: last_sync_time_test( dictionary )
 # 	'dictionary' is from JSON, containing details of one specific host
 # 
 # Returns: tuple of ( string, int ) where 'string' is a status message and 'int' is a status code
@@ -110,7 +110,7 @@ def lastSyncTimeTest( instance ):
 	if instance[ 'lastConsistencyTime' ] is None:
 		message = instance[ 'name' ] + " lastConsistencyTime is empty! There should be something there if it is replicating properly!"
 		return ( message, EXIT_STATUS_DICT[ 'UNKNOWN' ] )
-	
+
 	# Convert ISO-8601 format to UNIX epoch (integer seconds since Jan 1 1970) since that makes the math easy :-)
 	try:
 		instance[ 'lastConsistencyTime' ] = calendar.timegm( datetime.strptime( instance[ 'lastConsistencyTime' ], '%Y-%m-%dT%H:%M:%S.%fZ' ).timetuple() )
@@ -147,12 +147,12 @@ def lastSyncTimeTest( instance ):
 
 
 ###################################################################################################
-def sendRequest( func, params, headers ):
+def send_request( func, params, headers ):
 
 # This function makes the HTTPS call out to the CloudEndure API and makes sure we get a '200' HTTP status
 # before returning the JSON
 # 
-# Usage: sendRequest( string, dict1, dict2 )
+# Usage: send_request( string, dict1, dict2 )
 # 	'string' is the API function call
 # 	'dict1' is a dictionary of parameters for the API call
 # 	'dict2' is a dictionary of HTTP headers - currently only used for the session auth cookie
@@ -164,7 +164,7 @@ def sendRequest( func, params, headers ):
 	headers.update( { 'Content-Type': 'application/json' } )
 
 	# For debugging it's helpful to include the 'params' in verbose output, but
-	# that exposes the password when calling the 'login' API function - so it's not 
+	# that exposes the password when calling the 'login' API function - so it's not
 	# a great idea. Instead just show the function name and headers. That's safe.
 	## if args.verbose: print "\nCalling {0} with {1} and {2}".format( func, params, headers )
 	if args.verbose: print "\nCalling {0} with {1}".format( func, headers )
@@ -172,7 +172,7 @@ def sendRequest( func, params, headers ):
 	conn.request( 'POST', '/latest/' + func, json.dumps( params ), headers )
 	response = conn.getresponse()
 	if response.status != 200:
-		exitWithMessage( "login call returned HTTP code {0} {1}".format( response.status, response.reason ), EXIT_STATUS_DICT[ 'UNKNOWN' ] )
+		exit_with_message( "login call returned HTTP code {0} {1}".format( response.status, response.reason ), EXIT_STATUS_DICT[ 'UNKNOWN' ] )
 	return response
 
 ###################################################################################################
@@ -180,7 +180,7 @@ def sendRequest( func, params, headers ):
 
 
 # Set up our inputs from the command line. This also handles the "-h" and error usage output for free!
-parser = argparse.ArgumentParser( description = "Nagios check of the sync status of CloudEndure replication. Exit status 0 == OK, 1 == Warning, 2 == Critical, 3 == Unknown.", 
+parser = argparse.ArgumentParser( description = "Nagios check of the sync status of CloudEndure replication. Exit status 0 == OK, 1 == Warning, 2 == Critical, 3 == Unknown.",
 				  epilog = "https://confluence.huit.harvard.edu/pages/viewpage.action?pageId=12133075" )
 parser.add_argument( "-v", "--verbose",  help = "increase output verbosity", action = "store_true" )
 parser.add_argument( "-u", "--username", help = "user name for the CloudEndure account - required", required = True )
@@ -196,7 +196,7 @@ if args.verbose:
 
 
 # Do the login
-response = sendRequest( 'login', { 'username': args.username, 'password': args.password }, {} )
+response = send_request( 'login', { 'username': args.username, 'password': args.password }, {} )
 
 
 # Extract the session cookie from the login
@@ -206,7 +206,7 @@ session_cookie = [ cookie for cookie in cookies if cookie.startswith( 'session' 
 
 
 # Get the replica location from the user info
-response = sendRequest( 'getUserDetails', {}, { 'Cookie': session_cookie } )
+response = send_request( 'getUserDetails', {}, { 'Cookie': session_cookie } )
 result = json.loads( response.read() )[ 'result' ]
 if args.verbose: print "\ngetUserDetails:", json.dumps( result, sort_keys = True, indent = 4 )
 location = result[ 'originalLocation' ]
@@ -215,13 +215,13 @@ location = result[ 'originalLocation' ]
 # This is from some sample code I incorporated into this script. Since the 'for' loop
 # looks useful for future things, I'm including it here for reference. This builds and prints
 # a one-line comma-separated list of machine IDs. This is not needed in this script.
-# response = sendRequest( 'listMachines', { 'location': location }, { 'Cookie': session_cookie } )
+# response = send_request( 'listMachines', { 'location': location }, { 'Cookie': session_cookie } )
 # machineIds = [ machine[ 'id' ] for machine in json.loads( response.read() )[ 'result' ] ]
 # print ', '.join(machineIds)
 
 
 # Now that we have the location, we list all machines. This gets us all info about everything!
-response = sendRequest( 'listMachines', { 'location': location }, { 'Cookie': session_cookie } )
+response = send_request( 'listMachines', { 'location': location }, { 'Cookie': session_cookie } )
 instances = json.loads( response.read() )[ 'result' ]
 if args.verbose: print "\nlistMachines:", json.dumps( instances, sort_keys = True, indent = 4 )
 
@@ -230,7 +230,7 @@ if args.verbose: print "\nlistMachines:", json.dumps( instances, sort_keys = Tru
 ################################################################
 # Special overrides for testing / debugging / development.
 # This manipulates the timestamp and status text for evaluating
-# the logic in lastSyncTimeTest()
+# the logic in last_sync_time_test()
 # 
 # for x in instances:
 # 	timetest = "2016-01-01T22:08:15.803212+00:00"
@@ -254,7 +254,7 @@ if args.hostname == "all":		# "all" means we're going to check all of them (duh)
 	for instance in instances:
 		if args.verbose: print "\nname:", instance[ 'name' ]
 
-		message, exitCode = lastSyncTimeTest( instance )		# This is the heart of the analysis of health.
+		message, exitCode = last_sync_time_test( instance )		# This is the heart of the analysis of health.
 		statusDict[ instance[ 'name' ] ] = {}				# Init the structure for each host
 		statusDict[ instance[ 'name' ] ][ 'message' ] = message		# Store the message for each host
 		statusDict[ instance[ 'name' ] ][ 'exitCode' ] = exitCode	# Store the status code for each host
@@ -265,13 +265,14 @@ if args.hostname == "all":		# "all" means we're going to check all of them (duh)
 		if exitCode > highestError: highestError = exitCode	# Capture the "worst" error state
 
 	# Now we build up the 'summaryMessage' by iterating across all the different statuses. (or stati? My Latin sucks.)
-	# For each level of severity we'll build a comma-separated list of hostnames with that status. 
+	# For each level of severity we'll build a comma-separated list of hostnames with that status.
 	# If a severity level doesn't have any hosts in that state, we'll output '0' (zero).
-	# Each of the severity levels will be semicolon-separated
-	# Example: OK: server12.harvard.edu / WARNING: 0 / CRITICAL: server1.harvard.edu, server8.harvard.edu / UNKNOWN: 0
+	# Each of the severity levels will be slash-separated
+	# Example:
+	# OK: server12.harvard.edu / WARNING: 0 / CRITICAL: server1.harvard.edu, server8.harvard.edu / UNKNOWN: 0
 	for severity in ( EXIT_STATUS_DICT[ 'OK' ], EXIT_STATUS_DICT[ 'WARNING' ], EXIT_STATUS_DICT[ 'CRITICAL' ], EXIT_STATUS_DICT[ 'UNKNOWN' ] ):
 
-		wasPreviousCountZero = True			# Track what the previous number was, so we know when to use a semicolon vs. comma
+		wasPreviousCountZero = True			# Track what the previous number was, so we know when to use a slash vs. comma
 		if len( statusDict[ severity ] ) > 0:		# Is there one or more host(s) with this severity level?
 			isFirstHostName = True
 			for name in statusDict[ severity ]:	# If there are hosts this time, add each one to the summary message by iterating over the list
@@ -293,7 +294,7 @@ if args.hostname == "all":		# "all" means we're going to check all of them (duh)
 			wasPreviousCountZero = True
 
 	summaryMessage = "Status of all hosts in account \"" + args.username + "\": " + summaryMessage
-	exitWithMessage( summaryMessage, highestError )
+	exit_with_message( summaryMessage, highestError )
 
 else:		# This means we were given a specific host name to check
 	foundTheHostname = False
@@ -301,14 +302,14 @@ else:		# This means we were given a specific host name to check
 		if instance[ 'name' ] == args.hostname:
 			foundTheHostname = True
 			if args.verbose: print "\nI found %s" % args.hostname
-			message, exitCode = lastSyncTimeTest( instance )
-			exitWithMessage( message, exitCode )
+			message, exitCode = last_sync_time_test( instance )
+			exit_with_message( message, exitCode )
 
 	# Not finding the host name that was specified is a big problem!!!
-	if foundTheHostname == False: exitWithMessage( "Could not find the specified hostname \"" + args.hostname 
+	if foundTheHostname == False: exit_with_message( "Could not find the specified hostname \"" + args.hostname
 							+ "\" in account \"" + args.username + "\" !!", EXIT_STATUS_DICT[ 'CRITICAL' ] )
 
 
 # Bail out fail-safe (but in this case "safe" is to notify us of the problem!)
-exitWithMessage( "Something went wrong - this should not happen.", EXIT_STATUS_DICT[ 'UNKNOWN' ] )
+exit_with_message( "Something went wrong - this should not happen.", EXIT_STATUS_DICT[ 'UNKNOWN' ] )
 
