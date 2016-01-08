@@ -6,8 +6,9 @@
 # By Stefan Wuensch, Jan. 2016
 # 
 # This script is a Nagios plugin which will query the CloudEndure API for the 
-# replication / sync status of a host. 
-# 
+# replication / sync status of a host. (CloudEndure is a server-replication
+# provider, allowing migration and/or DR.) https://www.cloudendure.com/
+# Disclaimer: I have no affiliation with CloudEndure; my employer is a customer of CloudEndure.
 # 
 # 
 # usage: check_CloudEndure_replication.py [-h] [-v] -u USERNAME -p PASSWORD
@@ -27,7 +28,6 @@
 #                         hostname of instance to check, or "all" (defaults to
 #                         "all" if not specified)
 # 
-# https://confluence.huit.harvard.edu/pages/viewpage.action?pageId=12133075
 # 
 # 
 # Required inputs: CloudEndure username and password. 
@@ -205,7 +205,7 @@ def send_request( func, params, headers ):
 
 # Set up our inputs from the command line. This also handles the "-h" and error usage output for free!
 parser = argparse.ArgumentParser( description = "Nagios check of the sync status of CloudEndure replication. Exit status 0 == OK, 1 == Warning, 2 == Critical, 3 == Unknown.",
-				  epilog = "https://confluence.huit.harvard.edu/pages/viewpage.action?pageId=12133075" )
+				  epilog = "https://github.com/stefan-wuensch/Nagios-Checks" )
 parser.add_argument( "-v", "--verbose",  help = "increase output verbosity", action = "store_true" )
 parser.add_argument( "-u", "--username", help = "user name for the CloudEndure account - required", required = True )
 parser.add_argument( "-p", "--password", help = "password for the CloudEndure account - required",  required = True )
@@ -293,7 +293,7 @@ if args.hostname == "all":		# "all" means we're going to check all of them (duh)
 	# If a severity level doesn't have any hosts in that state, we'll output '0' (zero).
 	# Each of the severity levels will be slash-separated
 	# Example:
-	# OK: server12.harvard.edu / WARNING: 0 / CRITICAL: server1.harvard.edu, server8.harvard.edu / UNKNOWN: 0
+	# OK: server12.blah.com / WARNING: 0 / CRITICAL: server1.blah.com, server8.blah.com / UNKNOWN: 0
 	for severity in ( EXIT_STATUS_DICT[ 'OK' ], EXIT_STATUS_DICT[ 'WARNING' ], EXIT_STATUS_DICT[ 'CRITICAL' ], EXIT_STATUS_DICT[ 'UNKNOWN' ] ):
 
 		wasPreviousCountZero = True			# Track what the previous number was, so we know when to use a slash vs. comma
