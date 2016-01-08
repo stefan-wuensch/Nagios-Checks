@@ -5,7 +5,10 @@ My own Nagios checks of various things.
 # check_CloudEndure_replication.py
 
 This script is a Nagios plugin which will query the CloudEndure API for the 
-replication / sync status of a host. 
+replication / sync status of a host. (CloudEndure is a server-replication
+provider, allowing migration and/or DR.) https://www.cloudendure.com/
+
+Disclaimer: I have no affiliation with CloudEndure; my employer is a customer of CloudEndure.
 
 
 ```
@@ -26,7 +29,6 @@ optional arguments:
                         hostname of instance to check, or "all" (defaults to
                         "all" if not specified)
 
-https://confluence.huit.harvard.edu/pages/viewpage.action?pageId=12133075
 ```
 
 Required inputs: CloudEndure username and password. 
@@ -37,3 +39,5 @@ Outputs: One line of text containing the explanation of the replication status. 
 	this will be one line no matter how many hosts are found (in the case of "all")
 
 Exit status: 0, 1, 2, 3 as standard Nagios status codes. See EXITSTATUSDICT for mapping.
+
+
