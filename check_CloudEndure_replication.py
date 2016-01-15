@@ -92,6 +92,7 @@ EXIT_STATUS_DICT_REVERSE = {
 	3: "UNKNOWN"
 }
 
+# To do: make these optional args
 WARNING_SYNC_DELAY  = 1800	# Number of seconds over which it's a Warning - we will forgive any sync delay up to 30 min.
 CRITICAL_SYNC_DELAY = 3600	# Number of seconds (equals 1 hour) beyond which it's Critical
 
@@ -160,23 +161,27 @@ def last_sync_time_test( instance ):
 	# We will try several different ISO-8601 formats before giving up.
 	# https://en.wikipedia.org/wiki/ISO_8601
 	# See format codes at https://docs.python.org/2/library/datetime.html
+	originalTimeValue = instance[ 'lastConsistencyTime' ]		# Save it for later. We will be trying to replace it with the integer value.
 	for format in ( '%Y-%m-%dT%H:%M:%S.%f%z', '%Y-%m-%dT%H:%M:%S%z', '%Y-%m-%dT%H:%M:%S.%f+00:00', '%Y-%m-%dT%H:%M:%S+00:00', '%Y-%m-%dT%H:%M:%S.%fZ', '%Y-%m-%dT%H:%M:%SZ', '%Y%m%dT%H%M%SZ' ):
 		if args.verbose: print "Trying ISO-8601 format ", format
 		try:
 			instance[ 'lastConsistencyTime' ] = calendar.timegm( datetime.strptime( instance[ 'lastConsistencyTime' ], format ).timetuple() )
 			if isinstance( instance[ 'lastConsistencyTime' ], ( int, long ) ):
-				break
+				break		# If we managed to get a numeric value, we're done.
 		except ValueError:
-			continue
-# 		message = instance[ 'name' ] + " lastConsistencyTime doesn't appear to be a date / time in ISO-8601 format!"
-# 		return ( message, EXIT_STATUS_DICT[ 'UNKNOWN' ] )
-		
-	if args.verbose: print "lastConsistencyTime UNIX epoch seconds:", instance[ 'lastConsistencyTime' ]
+			continue		# Try again with the next format if this one didn't work.
 
+	# If we still have the same time value & format as before, we failed to find a matching ISO-8601 pattern.
+	if instance[ 'lastConsistencyTime' ] == originalTimeValue:
+		message = instance[ 'name' ] + " lastConsistencyTime " + str( instance[ 'lastConsistencyTime' ] ) + " doesn't appear to be a date / time in a recognized ISO-8601 format!"
+		return ( message, EXIT_STATUS_DICT[ 'UNKNOWN' ] )
+		
 	# Now for the ultimate in being careful, make sure it really is an integer!
 	if not isinstance( instance[ 'lastConsistencyTime' ], ( int, long ) ):
 		message = instance[ 'name' ] + " lastConsistencyTime is not an integer!"
 		return ( message, EXIT_STATUS_DICT[ 'UNKNOWN' ] )
+	if args.verbose: print "lastConsistencyTime UNIX epoch seconds:", instance[ 'lastConsistencyTime' ]
+
 
 	# Make a string that's human-readable for printing in output
 	lastSyncTimeStr = time.strftime( '%Y-%m-%d %H:%M:%S', time.localtime( instance[ 'lastConsistencyTime' ] ) )
