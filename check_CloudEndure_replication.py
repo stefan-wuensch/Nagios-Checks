@@ -92,8 +92,10 @@ EXIT_STATUS_DICT_REVERSE = {
 	3: "UNKNOWN"
 }
 
-WARNING_SYNC_DELAY  = 600	# Number of seconds over which it's a Warning - we will forgive any sync delay up to 10 min.
-CRITICAL_SYNC_DELAY = 1800	# Number of seconds (equals 30 minutes) beyond which it's Critical
+WARNING_SYNC_DELAY  = 1800	# Number of seconds over which it's a Warning - we will forgive any sync delay up to 30 min.
+CRITICAL_SYNC_DELAY = 3600	# Number of seconds (equals 1 hour) beyond which it's Critical
+
+CLOUDENDURE_API_HOST = "dashboard.cloudendure.com"
 
 
 
@@ -112,8 +114,19 @@ def exit_with_message( message = "Something not defined", exitCode = EXIT_STATUS
 
 	prefix = ""
 	if exitCode == EXIT_STATUS_DICT[ 'UNKNOWN' ]: prefix = "Error: "		# Add additional info at beginning
+
 	print "{0}{1}".format( prefix, message )
-	response = send_request( 'logout', {}, { 'Cookie': session_cookie } )	# Send a logout because they want that
+
+	# Try and do a proper logout (because they want that) but NOT if we got here because of 
+	# an 'Unknown' state! If we tried to do a 'logout' call on 'Unknown' we'd be risking an 
+	# endless loop of send_request() fail bringing us back here again. Ugly.
+	# (Nagios would eventually time out this script, but let's not even risk it.)
+	if exitCode != EXIT_STATUS_DICT[ 'UNKNOWN' ]:
+		try:
+			response = send_request( 'logout', {}, { 'Cookie': session_cookie } )
+		except Exception:
+			sys.exit( exitCode )	# If we get an error trying to log out, just bail.
+
 	sys.exit( exitCode )
 
 
@@ -144,10 +157,20 @@ def last_sync_time_test( instance ):
 		return ( message, EXIT_STATUS_DICT[ 'UNKNOWN' ] )
 
 	# Convert ISO-8601 format to UNIX epoch (integer seconds since Jan 1 1970) since that makes the math easy :-)
-	try:
-		instance[ 'lastConsistencyTime' ] = calendar.timegm( datetime.strptime( instance[ 'lastConsistencyTime' ], '%Y-%m-%dT%H:%M:%S.%fZ' ).timetuple() )
-	except ValueError:
-		instance[ 'lastConsistencyTime' ] = calendar.timegm( datetime.strptime( instance[ 'lastConsistencyTime' ], '%Y-%m-%dT%H:%M:%S.%f+00:00' ).timetuple() )
+	# We will try several different ISO-8601 formats before giving up.
+	# https://en.wikipedia.org/wiki/ISO_8601
+	# See format codes at https://docs.python.org/2/library/datetime.html
+	for format in ( '%Y-%m-%dT%H:%M:%S.%f%z', '%Y-%m-%dT%H:%M:%S%z', '%Y-%m-%dT%H:%M:%S.%f+00:00', '%Y-%m-%dT%H:%M:%S+00:00', '%Y-%m-%dT%H:%M:%S.%fZ', '%Y-%m-%dT%H:%M:%SZ', '%Y%m%dT%H%M%SZ' ):
+		if args.verbose: print "Trying ISO-8601 format ", format
+		try:
+			instance[ 'lastConsistencyTime' ] = calendar.timegm( datetime.strptime( instance[ 'lastConsistencyTime' ], format ).timetuple() )
+			if isinstance( instance[ 'lastConsistencyTime' ], ( int, long ) ):
+				break
+		except ValueError:
+			continue
+# 		message = instance[ 'name' ] + " lastConsistencyTime doesn't appear to be a date / time in ISO-8601 format!"
+# 		return ( message, EXIT_STATUS_DICT[ 'UNKNOWN' ] )
+		
 	if args.verbose: print "lastConsistencyTime UNIX epoch seconds:", instance[ 'lastConsistencyTime' ]
 
 	# Now for the ultimate in being careful, make sure it really is an integer!
@@ -191,8 +214,11 @@ def send_request( func, params, headers ):
 # 
 # Returns: JSON blob
 
-	conn = httplib.HTTPSConnection( 'dashboard.cloudendure.com', 443 )
-	conn.connect()
+	conn = httplib.HTTPSConnection( CLOUDENDURE_API_HOST, 443 )
+	try:
+		conn.connect()
+	except HTTPException:
+		exit_with_message( "Problem setting up the HTTPS connection to \"" + CLOUDENDURE_API_HOST + "\" !!", EXIT_STATUS_DICT[ 'UNKNOWN' ] )
 	headers.update( { 'Content-Type': 'application/json' } )
 
 	# For debugging it's helpful to include the 'params' in verbose output, but
@@ -203,8 +229,10 @@ def send_request( func, params, headers ):
 
 	conn.request( 'POST', '/latest/' + func, json.dumps( params ), headers )
 	response = conn.getresponse()
+# 	conn.close()
+# 	print "closed"
 	if response.status != 200:
-		exit_with_message( "login call returned HTTP code {0} {1}".format( response.status, response.reason ), EXIT_STATUS_DICT[ 'UNKNOWN' ] )
+		exit_with_message( "{0} call returned HTTP code {1} {2}".format( func, response.status, response.reason ), EXIT_STATUS_DICT[ 'UNKNOWN' ] )
 	return response
 
 ###################################################################################################
@@ -228,20 +256,35 @@ if args.verbose:
 
 
 # Do the login
-response = send_request( 'login', { 'username': args.username, 'password': args.password }, {} )
+try:
+	response = send_request( 'login', { 'username': args.username, 'password': args.password }, {} )
+except Exception:
+	exit_with_message( "Could not get a response on the login transaction!", EXIT_STATUS_DICT[ 'UNKNOWN' ] )
 
 
 # Extract the session cookie from the login
-session_cookie = [ header[ 1 ] for header in response.getheaders() if header[ 0 ] == 'set-cookie' ][ 0 ]
+try:
+	session_cookie = [ header[ 1 ] for header in response.getheaders() if header[ 0 ] == 'set-cookie' ][ 0 ]
+except Exception:
+	session_cookie = ""		# Set it to null in case we get all the way to the 'logout' call - we at least need it initialized.
+	exit_with_message( "Could not get a session cookie from the login transaction!", EXIT_STATUS_DICT[ 'UNKNOWN' ] )
 cookies = re.split( '; |, ', session_cookie )
 session_cookie = [ cookie for cookie in cookies if cookie.startswith( 'session' ) ][ 0 ].strip()
 
 
 # Get the replica location from the user info
 response = send_request( 'getUserDetails', {}, { 'Cookie': session_cookie } )
-result = json.loads( response.read() )[ 'result' ]
+try:
+	result = json.loads( response.read() )[ 'result' ]
+except Exception:
+	exit_with_message( "Could not get a \"result\" object from the \"getUserDetails\" transaction!", EXIT_STATUS_DICT[ 'UNKNOWN' ] )
+
 if args.verbose: print "\ngetUserDetails:", json.dumps( result, sort_keys = True, indent = 4 )
-location = result[ 'originalLocation' ]
+
+try:
+	location = result[ 'originalLocation' ]
+except Exception:
+	exit_with_message( "Could not get a value for \"originalLocation\" from the \"getUserDetails\" transaction!", EXIT_STATUS_DICT[ 'UNKNOWN' ] )
 
 
 # This is from some sample code I incorporated into this script. Since the 'for' loop
