@@ -65,6 +65,7 @@
 # =================================================================================================
 # 
 # To Do:
+# - close the httplib.HTTPSConnection explicitly. (Big oops that I forgot this!)
 # - turn the Warning and Critical constants into optional arguments
 # - make the Location an optional argument, instead of hard-coded "originalLocation".
 # 	(The two Locations we might want to watch are "originalLocation" and "mirrorLocation".)
