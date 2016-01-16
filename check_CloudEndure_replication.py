@@ -73,7 +73,7 @@
 
 
 
-import urllib, httplib, json, re, sys, argparse, time, calendar
+import urllib, httplib, json, re, sys, argparse, time, calendar, math
 from datetime import datetime
 
 # Dictionary for exit status codes
@@ -175,7 +175,7 @@ def last_sync_time_test( instance ):
 	if instance[ 'lastConsistencyTime' ] == originalTimeValue:
 		message = instance[ 'name' ] + " lastConsistencyTime " + str( instance[ 'lastConsistencyTime' ] ) + " doesn't appear to be a date / time in a recognized ISO-8601 format!"
 		return ( message, EXIT_STATUS_DICT[ 'UNKNOWN' ] )
-		
+
 	# Now for the ultimate in being careful, make sure it really is an integer!
 	if not isinstance( instance[ 'lastConsistencyTime' ], ( int, long ) ):
 		message = instance[ 'name' ] + " lastConsistencyTime is not an integer!"
@@ -187,18 +187,20 @@ def last_sync_time_test( instance ):
 	lastSyncTimeStr = time.strftime( '%Y-%m-%d %H:%M:%S', time.localtime( instance[ 'lastConsistencyTime' ] ) )
 
 	# Finally calculate how far back was the last sync
+	if args.verbose: print "Time now", int( time.time() )
 	timeDelta = int( time.time() ) - instance[ 'lastConsistencyTime' ]
+	if args.verbose: print "lastConsistencyTime seconds ago:", timeDelta
 
 	if ( timeDelta > CRITICAL_SYNC_DELAY ):		# This is the first test, because the longest delay value is Critical
-		message = instance[ 'name' ] + " has not had an update since " + lastSyncTimeStr + ", " + str( timeDelta ) + " seconds ago"
+		message = instance[ 'name' ] + " has not had an update since " + lastSyncTimeStr + ", " + str( seconds_to_time_text( timeDelta ) )
 		return ( message, EXIT_STATUS_DICT[ 'CRITICAL' ] )
 
 	if ( timeDelta > WARNING_SYNC_DELAY ):
-		message = instance[ 'name' ] + " has not had an update since " + lastSyncTimeStr + ", " + str( timeDelta ) + " seconds ago"
+		message = instance[ 'name' ] + " has not had an update since " + lastSyncTimeStr + ", " + str( seconds_to_time_text( timeDelta ) )
 		return ( message, EXIT_STATUS_DICT[ 'WARNING' ] )
 
 	if ( timeDelta <= WARNING_SYNC_DELAY ):		# If the delay since last sync is less than our tolerance for Warning, it's good!!
-		message = instance[ 'name' ] + " last update " + lastSyncTimeStr + ", " + str( timeDelta ) + " seconds ago"
+		message = instance[ 'name' ] + " last update " + lastSyncTimeStr + ", " + str( seconds_to_time_text( timeDelta ) )
 		return ( message, EXIT_STATUS_DICT[ 'OK' ] )
 
 	message = "Could not analyze the sync state for " + instance[ 'name' ]
@@ -239,6 +241,55 @@ def send_request( func, params, headers ):
 	if response.status != 200:
 		exit_with_message( "{0} call returned HTTP code {1} {2}".format( func, response.status, response.reason ), EXIT_STATUS_DICT[ 'UNKNOWN' ] )
 	return response
+
+
+
+###################################################################################################
+def seconds_to_time_text( inputSeconds ):
+
+# This function converts a number of seconds into a human-readable string of 
+# seconds / minutes / hours / days.
+# 
+# Usage: seconds_to_time_text( seconds )
+# 	'seconds' is an int, or string representation of an int
+# 
+# Returns: string of the time in words, such as "4 hours, 1 minute, 22 seconds"
+# 	or "1 day, 18 minutes"
+# 	or "12 days, 1 hour, 59 seconds"
+# 
+# Note: Due to variations in clock synchronization, it's possible for the CloudEndure
+# last sync time to come back as a timestamp in the future relative to where this
+# script is running. We will handle that gracefully.
+
+	try:
+		inputSeconds = int( inputSeconds )	# In case it's a string
+	except:
+		return "{} does not appear to be a whole number of seconds!".format( inputSeconds )
+
+	if inputSeconds == 0: return "0 seconds ago (just now)"
+	if inputSeconds < 0:
+		trailingText = " in the future!"
+	else:
+		trailingText = " ago"
+	inputSeconds = abs( inputSeconds )	# In case it's negative, meaning in the future
+
+	results = []
+	periods = (
+		( "days",    86400 ),
+		( "hours",   3600 ),
+		( "minutes", 60 ),
+		( "seconds", 1 )
+	)
+
+	for interval, number in periods:
+		timePart = inputSeconds // number		# Modulus / floor divide
+		if timePart:
+			inputSeconds -= timePart * number	# Take away the part so far
+			if timePart == 1: interval = interval.rstrip( "s" )	# Handle singular case
+			results.append( "{0} {1}".format( timePart, interval ) )
+	output = ", ".join( results )
+	return output + trailingText
+
 
 ###################################################################################################
 
@@ -347,7 +398,7 @@ if args.hostname == "all":		# "all" means we're going to check all of them (duh)
 	# Now we build up the 'summaryMessage' by iterating across all the different statuses. (or stati? My Latin sucks.)
 	# For each level of severity we'll build a comma-separated list of hostnames with that status.
 	# If a severity level doesn't have any hosts in that state, we'll output '0' (zero).
-	# Each of the severity levels will be slash-separated
+	# Each of the severity levels will be slash-separated.
 	# Example:
 	# OK: server12.blah.com / WARNING: 0 / CRITICAL: server1.blah.com, server8.blah.com / UNKNOWN: 0
 	for severity in ( EXIT_STATUS_DICT[ 'OK' ], EXIT_STATUS_DICT[ 'WARNING' ], EXIT_STATUS_DICT[ 'CRITICAL' ], EXIT_STATUS_DICT[ 'UNKNOWN' ] ):
@@ -358,19 +409,19 @@ if args.hostname == "all":		# "all" means we're going to check all of them (duh)
 			for name in statusDict[ severity ]:	# If there are hosts this time, add each one to the summary message by iterating over the list
 				if len( summaryMessage ) > 0:	# Only add punctuation if we're not starting off for the very first time
 					if wasPreviousCountZero == True:
-						summaryMessage = summaryMessage + " / "
+						summaryMessage += " / "
 					else:
-						summaryMessage = summaryMessage + ", "
+						summaryMessage += ", "
 				if isFirstHostName: 		# Only add the name of the severity level if it's the first host with this level
-					summaryMessage = summaryMessage + EXIT_STATUS_DICT_REVERSE[ severity ] + ": "
+					summaryMessage += EXIT_STATUS_DICT_REVERSE[ severity ] + ": "
 					isFirstHostName = False
-				summaryMessage = summaryMessage + name
+				summaryMessage += name
 				wasPreviousCountZero = False
 
 		else:						# If there wasn't any host in this severity, show zero
 			if len( summaryMessage ) > 0: 		# Don't add a comma if we're just starting off for the first round
-				summaryMessage = summaryMessage + " / "
-			summaryMessage = summaryMessage + EXIT_STATUS_DICT_REVERSE[ severity ] + ": 0"
+				summaryMessage += " / "
+			summaryMessage += EXIT_STATUS_DICT_REVERSE[ severity ] + ": 0"
 			wasPreviousCountZero = True
 
 	summaryMessage = "Status of all hosts in account \"" + args.username + "\": " + summaryMessage
