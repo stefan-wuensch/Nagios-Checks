@@ -74,7 +74,7 @@
 
 
 
-import urllib, httplib, json, re, sys, argparse, time, calendar, math
+import httplib, json, re, sys, argparse, time, calendar
 from datetime import datetime
 
 # Dictionary for exit status codes
@@ -237,8 +237,11 @@ def send_request( func, params, headers ):
 
 	conn.request( 'POST', '/latest/' + func, json.dumps( params ), headers )
 	response = conn.getresponse()
+
+# Can't close the connection here, because we need to be able to read from it outside this function!!
 # 	conn.close()
-# 	print "closed"
+# 	if args.verbose: print "Connection closed"
+
 	if response.status != 200:
 		exit_with_message( "{0} call returned HTTP code {1} {2}".format( func, response.status, response.reason ), EXIT_STATUS_DICT[ 'UNKNOWN' ] )
 	return response
