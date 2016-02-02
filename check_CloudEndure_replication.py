@@ -3,6 +3,8 @@
 # =================================================================================================
 # check_CloudEndure_replication.py
 # 
+# Version 2016-02-02
+# 
 # By Stefan Wuensch, Jan. 2016
 # 
 # This script is a Nagios plugin which will query the CloudEndure API for the 
