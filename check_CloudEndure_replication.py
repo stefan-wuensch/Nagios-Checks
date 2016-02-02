@@ -65,7 +65,6 @@
 # =================================================================================================
 # 
 # To Do:
-# - close the httplib.HTTPSConnection explicitly. (Big oops that I forgot this!)
 # - turn the Warning and Critical constants into optional arguments
 # - make the Location an optional argument, instead of hard-coded "originalLocation".
 # 	(The two Locations we might want to watch are "originalLocation" and "mirrorLocation".)
@@ -125,7 +124,9 @@ def exit_with_message( message = "Something not defined", exitCode = EXIT_STATUS
 	# (Nagios would eventually time out this script, but let's not even risk it.)
 	if exitCode != EXIT_STATUS_DICT[ 'UNKNOWN' ]:
 		try:
-			response = send_request( 'logout', {}, { 'Cookie': session_cookie } )
+			response, connection = send_request( 'logout', {}, { 'Cookie': session_cookie } )	# Here we don't care what is the response.
+			connection.close()
+			if args.verbose: print "Connection closed"
 		except Exception:
 			sys.exit( exitCode )	# If we get an error trying to log out, just bail.
 
@@ -210,7 +211,7 @@ def last_sync_time_test( instance ):
 
 
 ###################################################################################################
-def send_request( func, params, headers ):
+def send_request( function, params, headers ):
 
 # This function makes the HTTPS call out to the CloudEndure API and makes sure we get a '200' HTTP status
 # before returning the JSON
@@ -220,11 +221,11 @@ def send_request( func, params, headers ):
 # 	'dict1' is a dictionary of parameters for the API call
 # 	'dict2' is a dictionary of HTTP headers - currently only used for the session auth cookie
 # 
-# Returns: JSON blob
+# Returns: tuple of HTTPSConnection.getresponse(), and the connection object itself (to allow closing outside this function)
 
-	conn = httplib.HTTPSConnection( CLOUDENDURE_API_HOST, 443 )
+	connection = httplib.HTTPSConnection( CLOUDENDURE_API_HOST, 443 )
 	try:
-		conn.connect()
+		connection.connect()
 	except HTTPException:
 		exit_with_message( "Problem setting up the HTTPS connection to \"" + CLOUDENDURE_API_HOST + "\" !!", EXIT_STATUS_DICT[ 'UNKNOWN' ] )
 	headers.update( { 'Content-Type': 'application/json' } )
@@ -232,19 +233,15 @@ def send_request( func, params, headers ):
 	# For debugging it's helpful to include the 'params' in verbose output, but
 	# that exposes the password when calling the 'login' API function - so it's not
 	# a great idea. Instead just show the function name and headers. That's safe.
-	## if args.verbose: print "\nCalling {0} with {1} and {2}".format( func, params, headers )
-	if args.verbose: print "\nCalling {0} with {1}".format( func, headers )
+	## if args.verbose: print "\nCalling {0} with {1} and {2}".format( function, params, headers )
+	if args.verbose: print "\nCalling {0} with {1}".format( function, headers )
 
-	conn.request( 'POST', '/latest/' + func, json.dumps( params ), headers )
-	response = conn.getresponse()
+	connection.request( 'POST', '/latest/' + function, json.dumps( params ), headers )
+	connectionResponse = connection.getresponse()
 
-# Can't close the connection here, because we need to be able to read from it outside this function!!
-# 	conn.close()
-# 	if args.verbose: print "Connection closed"
-
-	if response.status != 200:
-		exit_with_message( "{0} call returned HTTP code {1} {2}".format( func, response.status, response.reason ), EXIT_STATUS_DICT[ 'UNKNOWN' ] )
-	return response
+	if connectionResponse.status != 200:
+		exit_with_message( "{0} call returned HTTP code {1} {2}".format( function, connectionResponse.status, connectionResponse.reason ), EXIT_STATUS_DICT[ 'UNKNOWN' ] )
+	return connectionResponse, connection
 
 
 
@@ -317,7 +314,7 @@ if args.verbose:
 
 # Do the login
 try:
-	response = send_request( 'login', { 'username': args.username, 'password': args.password }, {} )
+	response, connection = send_request( 'login', { 'username': args.username, 'password': args.password }, {} )
 except Exception:
 	exit_with_message( "Could not get a response on the login transaction!", EXIT_STATUS_DICT[ 'UNKNOWN' ] )
 
@@ -325,6 +322,8 @@ except Exception:
 # Extract the session cookie from the login
 try:
 	session_cookie = [ header[ 1 ] for header in response.getheaders() if header[ 0 ] == 'set-cookie' ][ 0 ]
+	connection.close()
+	if args.verbose: print "Connection closed"
 except Exception:
 	session_cookie = ""		# Set it to null in case we get all the way to the 'logout' call - we at least need it initialized.
 	exit_with_message( "Could not get a session cookie from the login transaction!", EXIT_STATUS_DICT[ 'UNKNOWN' ] )
@@ -333,9 +332,11 @@ session_cookie = [ cookie for cookie in cookies if cookie.startswith( 'session' 
 
 
 # Get the replica location from the user info
-response = send_request( 'getUserDetails', {}, { 'Cookie': session_cookie } )
+response, connection = send_request( 'getUserDetails', {}, { 'Cookie': session_cookie } )
 try:
 	result = json.loads( response.read() )[ 'result' ]
+	connection.close()
+	if args.verbose: print "Connection closed"
 except Exception:
 	exit_with_message( "Could not get a \"result\" object from the \"getUserDetails\" transaction!", EXIT_STATUS_DICT[ 'UNKNOWN' ] )
 
@@ -350,14 +351,19 @@ except Exception:
 # This is from some sample code I incorporated into this script. Since the 'for' loop
 # looks useful for future things, I'm including it here for reference. This builds and prints
 # a one-line comma-separated list of machine IDs. This is not needed in this script.
-# response = send_request( 'listMachines', { 'location': location }, { 'Cookie': session_cookie } )
+# response, connection = send_request( 'listMachines', { 'location': location }, { 'Cookie': session_cookie } )
 # machineIds = [ machine[ 'id' ] for machine in json.loads( response.read() )[ 'result' ] ]
 # print ', '.join(machineIds)
 
 
 # Now that we have the location, we list all machines. This gets us all info about everything!
-response = send_request( 'listMachines', { 'location': location }, { 'Cookie': session_cookie } )
-instances = json.loads( response.read() )[ 'result' ]
+response, connection = send_request( 'listMachines', { 'location': location }, { 'Cookie': session_cookie } )
+try:
+	instances = json.loads( response.read() )[ 'result' ]
+	connection.close()
+	if args.verbose: print "Connection closed"
+except Exception:
+	exit_with_message( "Could not get a \"result\" object from the \"listMachines\" transaction!", EXIT_STATUS_DICT[ 'UNKNOWN' ] )
 if args.verbose: print "\nlistMachines:", json.dumps( instances, sort_keys = True, indent = 4 )
 
 
