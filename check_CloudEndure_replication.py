@@ -98,7 +98,7 @@ EXIT_STATUS_DICT_REVERSE = {
 WARNING_SYNC_DELAY  = 1800	# Number of seconds over which it's a Warning - we will forgive any sync delay up to 30 min.
 CRITICAL_SYNC_DELAY = 3600	# Number of seconds (equals 1 hour) beyond which it's Critical
 
-CLOUDENDURE_API_HOST = "dashboard.cloudendure.com"
+CLOUDENDURE_API_HOST = "api.cloudendure.com"
 
 
 
@@ -238,7 +238,7 @@ def send_request( function, params, headers ):
 	## if args.verbose: print "\nCalling {0} with {1} and {2}".format( function, params, headers )
 	if args.verbose: print "\nCalling {0} with {1}".format( function, headers )
 
-	connection.request( 'POST', '/latest/' + function, json.dumps( params ), headers )
+	connection.request( 'POST', '/v10/' + function, json.dumps( params ), headers )
 	connectionResponse = connection.getresponse()
 
 	if connectionResponse.status != 200:
