@@ -1,43 +1,13 @@
-# Nagios-Checks
+Nagios-Checks
+====================
 My own Nagios checks of various things.
 
 
-# check_CloudEndure_replication.py
-
-This script is a Nagios plugin which will query the CloudEndure API for the 
-replication / sync status of a host. (CloudEndure is a server-replication
-provider, allowing migration and/or DR.) https://www.cloudendure.com/
-
-Disclaimer: I have no affiliation with CloudEndure; my employer is a customer of CloudEndure.
+check_CloudEndure_replication
+----------------
+Checks the cloud replication status and health of CloudEndure synchronization.
 
 
-```
-usage: check_CloudEndure_replication.py [-h] [-v] -u USERNAME -p PASSWORD
-                                        [-n HOSTNAME]
-
-Nagios check of the sync status of CloudEndure replication. Exit status 0 ==
-OK, 1 == Warning, 2 == Critical, 3 == Unknown.
-
-optional arguments:
-  -h, --help            show this help message and exit
-  -v, --verbose         increase output verbosity
-  -u USERNAME, --username USERNAME
-                        user name for the CloudEndure account - required
-  -p PASSWORD, --password PASSWORD
-                        password for the CloudEndure account - required
-  -n HOSTNAME, --hostname HOSTNAME
-                        hostname of instance to check, or "all" (defaults to
-                        "all" if not specified)
-
-```
-
-Required inputs: CloudEndure username and password. 
-
-Optional inputs: A host name (expected to be FQDN, but not manditory) to check
-
-Outputs: One line of text containing the explanation of the replication status. Note that 
-	this will be one line no matter how many hosts are found (in the case of "all")
-
-Exit status: 0, 1, 2, 3 as standard Nagios status codes. See EXITSTATUSDICT for mapping.
-
-
+check_JSON_status_URL.py
+-----------------------------
+Grabs a JSON blob from a web service and analyzes the health status attributes within.
