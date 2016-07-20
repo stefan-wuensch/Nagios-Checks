@@ -238,7 +238,7 @@ def send_request( function, params, headers ):
 	## if args.verbose: print "\nCalling {0} with {1} and {2}".format( function, params, headers )
 	if args.verbose: print "\nCalling {0} with {1}".format( function, headers )
 
-	connection.request( 'POST', '/v10/' + function, json.dumps( params ), headers )
+	connection.request( 'POST', '/latest/' + function, json.dumps( params ), headers )
 	connectionResponse = connection.getresponse()
 
 	if connectionResponse.status != 200:
