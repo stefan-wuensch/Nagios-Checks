@@ -54,5 +54,5 @@ Status of all attributes: OK: Security Service, File Transfer / WARNING: Name Lo
 ```
 
 
-This example would have exited *2*, for Nagios *CRITICAL*.
+This example would have exited **2**, for Nagios CRITICAL.
 
