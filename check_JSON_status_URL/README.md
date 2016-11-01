@@ -1,3 +1,5 @@
+[TOC]
+
 # check_JSON_status_URL.py
 
 This script is a Nagios plugin which will query a web service for a JSON blob
