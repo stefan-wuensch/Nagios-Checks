@@ -220,7 +220,7 @@ connection.request( 'GET', urlObject.path )
 try:
 	connectionResponse = connection.getresponse()
 except Exception:
-	exit_with_message( "Problem performing getresponse() on connection", EXIT_STATUS_DICT[ 'UNKNOWN' ] )
+	exit_with_message( "Problem performing getresponse() on connection - probably a timeout of the web service!", EXIT_STATUS_DICT[ 'CRITICAL' ] )
 
 if connectionResponse.status != 200:
 	exit_with_message( "call returned HTTP code {0} {1}".format( connectionResponse.status, connectionResponse.reason ), EXIT_STATUS_DICT[ 'UNKNOWN' ] )
